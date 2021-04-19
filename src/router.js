@@ -1,5 +1,5 @@
 import VueRouter from "vue-router";
-import firebase from "firebase/app";
+import { auth } from './services/firebase';
 
 import Auth from "./pages/Auth";
 import MarketCaps from "./pages/MarketCaps";
@@ -24,7 +24,7 @@ const routes = [
         path : "/table",
         name : 'TABLE',
         component : MarketCaps,
-        meta : { requiresAuth : true }
+        meta : { requiresAuth : false }
     },
 ];
 
@@ -38,25 +38,11 @@ const router = new VueRouter({
 router.beforeEach((to, from, next) => {
     // scroll to top
     window.scrollTo(0, 0);
+    log.log(logTag, `changing route to ${to.path} (${to.name})`);
 
     // redirect if the route needs authentication and the user is not logged in
-    if (to.matched.some(record => record.meta.requiresAuth)) {
-
-        firebase.auth().onAuthStateChanged(function(user) {
-
-            log.log(logTag, `changing route to ${to.path} (${to.name})`);
-            console.log(user);
-
-            if (user) {
-                // User is signed in.
-                next();
-
-            } else {
-                // No user is signed in.
-                next({ path : "/auth" });
-            }
-        });
-
+    if (to.matched.some(record => record.meta.requiresAuth) && !auth.currentUser) {
+        next({ path : "/auth" });
     } else {
         next();
     }

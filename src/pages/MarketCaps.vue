@@ -1,7 +1,7 @@
 <template>
     <div id="market-caps">
         <h1>coin market cap "analysis" tool lol</h1>
-        <h3>version 0.2.0 </h3>
+        <h3>version 0.3.0 </h3>
 
 
         <button @click="reloadTable" :disabled="reloading">
@@ -13,35 +13,15 @@
             </span>
         </button>
 
-        <br /> <br />
+        <br />
+        <input type="text" placeholder="enter coingecko id" v-model="newCoin">
+        <button @click="onAddNewCoin">add coin</button>
 
-
-        <hot-table :data="tableData" :settings="settings" licenseKey="non-commercial-and-evaluation"
-                   ref="table"
-        >
-<!--            <hot-column title="Symbol" data="coinSymbol" type="text"></hot-column>-->
-<!--            <hot-column title="Price" data="price" type="numeric"></hot-column>-->
-<!--            <hot-column title="From ATH" data="fromAth"></hot-column>-->
-<!--            <hot-column title="24h" data="priceChange24h"></hot-column>-->
-<!--            <hot-column title="7d" data="priceChange7d"></hot-column>-->
-<!--            <hot-column title="30d" data="priceChange30d"></hot-column>-->
-<!--            <hot-column title="200d" data="priceChange200d"></hot-column>-->
-
-<!--            <hot-column title="Market cap" data="marketCap"></hot-column>-->
-<!--            <hot-column title="MC rank" data="marketCapRank"></hot-column>-->
-<!--            <hot-column title="Circulating supply" data="circulatingSupply"></hot-column>-->
-
-<!--            <hot-column title="of BTC MC" data="btcMcFraction"></hot-column>-->
-<!--            <hot-column title="0.50%" data="priceAt05"></hot-column>-->
-<!--            <hot-column title="1%" data="priceAt1"></hot-column>-->
-<!--            <hot-column title="2%" data="priceAt2"></hot-column>-->
-<!--            <hot-column title="5%" data="priceAt5"></hot-column>-->
-<!--            <hot-column title="10%" data="priceAt10"></hot-column>-->
-<!--            <hot-column title="20%" data="priceAt20"></hot-column>-->
-<!--            <hot-column title="30%" data="priceAt30"></hot-column>-->
-        </hot-table>
-
-        <br /> <br />
+        <div id="table-wrapper">
+            <hot-table :data="tableData" :settings="settings" licenseKey="non-commercial-and-evaluation"
+                       ref="table" className="hot-table"
+            ></hot-table>
+        </div>
 
         <a href="https://api.coingecko.com/api/v3/coins/list">Search for new coin IDs here</a>
 
@@ -51,8 +31,10 @@
 <script>
 /* eslint-disable vue/no-unused-components,no-unused-vars */
 import { HotTable, HotColumn } from '@handsontable/vue';
-import { map, find } from "lodash";
+import { map, find, keys } from "lodash";
 import { getCoinData } from "../services/cryptoApiService";
+import { auth, coinsCollection } from "../services/firebase";
+import log from "../services/logger";
 const logTag = "MarketCaps";
 
 const baseCurrency = "usd";
@@ -118,8 +100,9 @@ export default {
 
     components: { HotTable, HotColumn },
 
-    mounted() {
+    async mounted() {
         console.log(`[${logTag}] mounted`);
+
         this.$nextTick(() => {
             this.reloadTable();
         });
@@ -129,6 +112,8 @@ export default {
         return {
             // disabling the button
             reloading : false,
+
+            newCoin : "",
 
             // this is what the table uses. Has to be set via HOT API
             tableData : [],
@@ -164,6 +149,8 @@ export default {
 
                 columns             : [
                     { title : "Symbol", data : "coinSymbol", type : "text", readOnly: true, className: "coinSymbol" },
+                    { title : "ID", data : "coingeckoId", type : "text", readOnly: false, className: "editable" },
+                    { title : "BR", data : "baserank", type : "numeric", readOnly: false, className: "editable"},
 
                     { title : "Price", data : "price", type : "numeric", numericFormat : priceFormat, readOnly: true },
                     { title : "From ATH", data : "fromAth", type : "numeric", numericFormat : percentFormat, readOnly: true },
@@ -199,11 +186,56 @@ export default {
                 fixedRowsTop        : 1,
                 fixedColumnsLeft    : 1,
                 columnSorting       : true,
+                // width: '100%',
 
 
-                afterChange         : (change, source) => {
+
+                afterChange         : async (change, source) => {
                     console.log(`Data changed, source: ${source}`);
                     console.log(change);
+
+                    if (!auth.currentUser) {
+                        log.log(logTag, `Not logged in!`);
+                        return;
+                    }
+
+                    if (source === "edit" ) {
+                        const [row, prop, oldValue, newValue] = change[0];
+                        if (oldValue === newValue) {
+                            return;
+                        }
+
+                        try {
+                            if (prop === "coingeckoId") {
+                                log.log(logTag, `Editing ${oldValue}.${prop}: ${oldValue} -> ${newValue}`);
+
+                                console.log("dopice");
+                                // delete the old coin
+                                await coinsCollection.doc(oldValue).delete();
+                                log.log(logTag, `Deleted coin: ${oldValue}`);
+                                if (!newValue) {
+                                    this.reloadTable();
+                                    return;
+                                }
+
+                                // add the new coin
+                                await this.addNewCoin(newValue);
+                                return;
+                            }
+
+                            const coinId = this.$refs.table.hotInstance.getDataAtRowProp(row, "coingeckoId");
+                            log.log(logTag, `Editing ${coinId}.${prop}: ${oldValue} -> ${newValue}`);
+
+                            // @todo only if valid!
+
+                            await coinsCollection.doc(coinId).set({[prop]: newValue});
+                            console.log(`${coinId}.${prop} successfully changed to ${newValue}`);
+
+                        } catch (error) {
+                            log.log(logTag, `Error while editing document!`);
+                            log.log(logTag, error);
+                        }
+                    }
                 }
             }
         };
@@ -212,10 +244,47 @@ export default {
 
 
     methods: {
+        async onAddNewCoin() {
+            if (!this.newCoin) {
+                return;
+            }
+
+            if (!auth.currentUser) {
+                log.log(logTag, `Not logged in!`);
+                return;
+            }
+
+            await this.addNewCoin(this.newCoin);
+            this.newCoin = "";
+        },
+
+        async addNewCoin(coinId) {
+            log.log(logTag, `Adding new coin: ${coinId}`);
+            // @todo: check if it exists
+
+            try {
+                await coinsCollection.doc(coinId).set(
+                    { baserank : null, description : "no description yet" }
+                )
+                log.log(logTag, `New coin added successfully`);
+                this.reloadTable();
+
+            } catch(error) {
+                log.log(logTag, `Error adding coin "${coinId}!"`);
+                log.log(logTag, error);
+            }
+        },
+
         async reloadTable() {
+            const snapshot = await coinsCollection.get();
+            let coins = {};
+            snapshot.forEach((doc) => coins[doc.id] = doc.data());
+            console.log(coins);
+
+
             this.reloading = true;
 
-            const coinData = await getCoinData(coinIds, baseCurrency);
+            const coinData = await getCoinData(keys(coins), baseCurrency);
 
             const bitcoin = find(coinData, { id : "bitcoin" });
             // console.log(bitcoin);
@@ -230,6 +299,8 @@ export default {
                 return {
                     id                  : currentCoinId,
                     coinSymbol          : coin.symbol.toUpperCase(),
+                    coingeckoId         : coin.id,
+                    baserank            : coins[coin.id].baserank,
                     circulatingSupply   : Math.floor(coin.circulating_supply),
 
                     price               : coin.current_price,
@@ -271,6 +342,22 @@ export default {
     }
 
     .coinSymbol { font-weight: bold; }
+
+    #table-wrapper {
+        margin: 30px 0;
+        /*width: 100%;*/
+        /*overflow-x: scroll;*/
+        /*overflow-y: visible;*/
+    }
+
+    /*.hot-table {*/
+    /*    width: 500px;*/
+    /*    overflow: hidden;*/
+    /*}*/
+
+    td.editable {
+        color: #3535ed;
+    }
 </style>
 <style scoped>
     h1 {

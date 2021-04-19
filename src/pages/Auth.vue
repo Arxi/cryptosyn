@@ -9,7 +9,8 @@
 /* eslint-disable no-unused-vars */
 import log from "../services/logger";
 import * as firebaseui from "firebaseui";
-import firebase from "firebase";
+import firebase from "firebase/app";
+import { auth } from "../services/firebase";
 const logTag = "Auth";
 
 export default {
@@ -20,7 +21,7 @@ export default {
         log.log(logTag, "mounted");
         this.$nextTick(() => {
             const ui = firebaseui.auth.AuthUI.getInstance()
-                || new firebaseui.auth.AuthUI(firebase.auth());
+                || new firebaseui.auth.AuthUI(auth);
 
             ui.start('#firebaseui-auth-container', {
                 callbacks: {
@@ -32,7 +33,6 @@ export default {
                         return true;
                     },
                     uiShown: function() {
-                        console.log("uiShown");
                         // The widget is rendered.
                         // Hide the loader.
                         document.getElementById('loader').style.display = 'none';

@@ -8,10 +8,10 @@
 
       <div v-else id="login-info">
           <template v-if="this.loggedIn">
-              You are logged in as {{ user.displayName }}. <a href="#" @click="signOut">Sign out</a>
+              You are signed in as {{ user.displayName }}. <a href="#" @click="signOut">Sign out</a>
           </template>
           <template v-else>
-              You are not logged in! <a href="/#/auth">Log in here</a>
+              You are not signed in! <a href="/#/auth">Sign in</a>
           </template>
       </div>
 
@@ -20,7 +20,7 @@
 </template>
 <!---------------------------------------------------------------------------->
 <script>
-import firebase from "firebase";
+import { auth } from "./services/firebase";
 import log from "./services/logger";
 const logTag = "App";
 
@@ -28,7 +28,8 @@ export default {
     name : logTag,
 
     mounted() {
-        firebase.auth().onAuthStateChanged((user) => {
+        // @todo this is useless now as the app won't load before firebase loads
+        auth.onAuthStateChanged((user) => {
             this.loading = false;
 
             if (user) {
@@ -55,7 +56,7 @@ export default {
     methods: {
         signOut() {
             log.log(logTag, "Signing out");
-            firebase.auth().signOut();
+            auth.signOut();
         }
     }
 }
