@@ -56,6 +56,7 @@ import { getCoinData } from "../services/cryptoApiService";
 const logTag = "MarketCaps";
 
 const baseCurrency = "usd";
+// http://numbrojs.com/old-format.html
 const priceFormat = { pattern: '$0,00.00', culture: 'en-US' };
 const marketCapFormat = { pattern: '$0,00', culture: 'en-US' };
 const percentFormat = { pattern: '0.0%' };
@@ -270,5 +271,10 @@ export default {
     }
 
     .coinSymbol { font-weight: bold; }
-
+</style>
+<style scoped>
+    h1 {
+        margin-top: 10px;
+        margin-bottom: 10px;
+    }
 </style>
