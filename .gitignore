@@ -1,7 +1,7 @@
 .DS_Store
 node_modules
 /dist
-
+/admin/service-account-private-key.json;
 
 # local env files
 .env.local
