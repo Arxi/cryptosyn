@@ -11,9 +11,13 @@
     "@handsontable/vue": "^6.0.0",
     "axios": "^0.21.1",
     "core-js": "^3.6.5",
+    "firebase": "^8.4.1",
+    "firebase-admin": "^9.6.0",
+    "firebaseui": "^4.8.0",
     "handsontable": "^8.3.2",
     "lodash": "^4.17.21",
-    "vue": "^2.6.11"
+    "vue": "^2.6.11",
+    "vue-router": "^3.5.1"
   },
   "devDependencies": {
     "@vue/cli-plugin-babel": "^4.5.0",
