@@ -14,8 +14,10 @@
         </button>
 
         <br />
-        <input type="text" placeholder="enter coingecko id" v-model="newCoin">
-        <button @click="onAddNewCoin">add coin</button>
+        <template v-if="isLoggedIn">
+            <input type="text" placeholder="enter coingecko id" v-model="newCoin">
+            <button @click="onAddNewCoin">add coin</button>
+        </template>
 
         <div id="table-wrapper">
             <hot-table :data="tableData" :settings="settings" licenseKey="non-commercial-and-evaluation"
@@ -32,8 +34,10 @@
 /* eslint-disable vue/no-unused-components,no-unused-vars */
 import { HotTable, HotColumn } from '@handsontable/vue';
 import { map, find, keys } from "lodash";
-import { getCoinData } from "../services/cryptoApiService";
+import { getCoinMarketData } from "../services/cryptoApi";
 import { auth, coinsCollection } from "../services/firebase";
+import { sparklineRenderer, priceColorRenderer } from "../services/hotUtils";
+import { relativeDays } from "../services/utils";
 import log from "../services/logger";
 const logTag = "MarketCaps";
 
@@ -44,57 +48,6 @@ const marketCapFormat = { pattern: '$0,00', culture: 'en-US' };
 const percentFormat = { pattern: '0.0%' };
 const percentFormat2dec = { pattern: '0.00%' };
 
-const coinIds = [
-    "bitcoin",
-    "ethereum",
-    "ripple",
-    "audius",
-    "decentraland",
-    "cardano",
-    "ontology",
-    "neo",
-    "monero",
-    "dogecoin",
-    "eos",
-    "verge",
-    "basic-attention-token",
-    "district0x",
-    "vechain",
-    "theta-token",
-    // "theta-fuel",
-    "ardor",
-    "ignis",
-    "siacoin",
-    "tezos",
-    "digibyte",
-    "tron",
-    "cosmos",
-    "stellar",
-    "polkadot",
-    "litecoin",
-    "nem",
-    "waves",
-    "einsteinium",
-    "syscoin",
-    "api3",
-    "kin",
-    "qtum",
-    "phantasma",
-    "uniswap",
-    "augur",
-    "golem",
-    "metal",
-    "zcash",
-    "bitcoin-cash",
-    "dash",
-    "ocean-protocol",
-    "aave",
-    "kardiachain",
-    "bondly",
-    "harmony",
-    "darwinia-network-native-token"
-];
-
 export default {
     name: logTag,
 
@@ -102,6 +55,8 @@ export default {
 
     async mounted() {
         console.log(`[${logTag}] mounted`);
+
+        this.isLoggedIn = !!auth.currentUser;
 
         this.$nextTick(() => {
             this.reloadTable();
@@ -112,6 +67,8 @@ export default {
         return {
             // disabling the button
             reloading : false,
+
+            isLoggedIn : false,
 
             newCoin : "",
 
@@ -127,14 +84,17 @@ export default {
                     coingeckoId         : null,
 
                     price               : null,
+                    sparkline7d         : null,
                     fromAth             : null,
+                    fromAthDays         : null,
                     priceChange24h      : null,
                     priceChange7d       : null,
                     priceChange30d      : null,
                     priceChange200d     : null,
 
-                    marketCap           : null,
                     marketCapRank       : null,
+                    marketCap           : null,
+                    marketCapChange24h  : null,
                     circulatingSupply   : null,
 
                     btcMcFraction       : null,
@@ -148,31 +108,64 @@ export default {
                 },
 
                 columns             : [
-                    { title : "Symbol", data : "coinSymbol", type : "text", readOnly: true, className: "coinSymbol" },
-                    { title : "ID", data : "coingeckoId", type : "text", readOnly: false, className: "editable" },
-                    { title : "BR", data : "baserank", type : "numeric", readOnly: false, className: "editable"},
+                    { title : "Symbol", data : "coinSymbol", type : "text", readOnly: true,
+                        className: "coinSymbol htMiddle", width : 60 },
+                    { title : "ID", data : "coingeckoId", type : "text", readOnly: false,
+                        className: "editable htMiddle text-smaller", width : 80 },
+                    { title : "BR", data : "baserank", type : "numeric", readOnly: false,
+                        className: "editable htMiddle htCenter", width : 40},
 
-                    { title : "Price", data : "price", type : "numeric", numericFormat : priceFormat, readOnly: true },
-                    { title : "From ATH", data : "fromAth", type : "numeric", numericFormat : percentFormat, readOnly: true },
+                    { title : "Price", data : "price", type : "numeric", numericFormat : priceFormat,
+                        readOnly: true, width : 80 },
+                    { title : "Price 7D", width: 170, renderer : sparklineRenderer, readOnly: true },
 
-                    { title : "24h", data : "priceChange24h", type : "numeric", numericFormat : percentFormat, readOnly: true },
-                    { title : "7D", data : "priceChange7d", type : "numeric", numericFormat : percentFormat, readOnly: true },
-                    { title : "30D", data : "priceChange30d", type : "numeric", numericFormat : percentFormat, readOnly: true },
-                    { title : "200D", data : "priceChange200d", type : "numeric", numericFormat : percentFormat, readOnly: true },
+                    { title : "From ATH", data : "fromAth", type : "numeric", numericFormat : percentFormat,
+                        readOnly: true, width: 55 },
+                    { title : "Days from ATH", data : "fromAthDays", type: "text", readOnly: true,
+                        width: 70 },
 
-                    { title : "Market cap", data : "marketCap", type : "numeric", numericFormat : marketCapFormat, readOnly: true },
-                    { title : "MC rank", data : "marketCapRank", type : "numeric", readOnly: true },
-                    { title : "Circ. supply", data : "circulatingSupply", type : "numeric", readOnly: true },
+                    { title : "Price 24h", data : "priceChange24h", type : "numeric", numericFormat : percentFormat,
+                        readOnly: true, width: 60, renderer : priceColorRenderer },
+                    { title : "Price 7D", data : "priceChange7d", type : "numeric", numericFormat : percentFormat,
+                        readOnly: true, width: 60, renderer : priceColorRenderer },
+                    { title : "Price 30D", data : "priceChange30d", type : "numeric", numericFormat : percentFormat,
+                        readOnly: true, width: 60, renderer : priceColorRenderer },
+                    { title : "Price 200D", data : "priceChange200d", type : "numeric", numericFormat : percentFormat,
+                        readOnly: true, width: 70, renderer : priceColorRenderer },
 
-                    { title : "% of BTC MC", data : "btcMcFraction", type : "numeric", numericFormat : percentFormat2dec, readOnly: true },
-                    { title : "at 0.5%", data : "priceAt05", type : "numeric", numericFormat : priceFormat, readOnly: true },
-                    { title : "at 1%", data : "priceAt1", type : "numeric", numericFormat : priceFormat, readOnly: true },
-                    { title : "at 2%", data : "priceAt2", type : "numeric", numericFormat : priceFormat, readOnly: true },
-                    { title : "at 5%", data : "priceAt5", type : "numeric", numericFormat : priceFormat, readOnly: true },
-                    { title : "at 10%", data : "priceAt10", type : "numeric", numericFormat : priceFormat, readOnly: true },
-                    { title : "at 20%", data : "priceAt20", type : "numeric", numericFormat : priceFormat, readOnly: true },
-                    { title : "at 30%", data : "priceAt30", type : "numeric", numericFormat : priceFormat, readOnly: true },
+                    { title : "MC rank", data : "marketCapRank", type : "numeric", readOnly: true,
+                        width: 40, className: "htMiddle htCenter" },
+                    { title : "Market cap", data : "marketCap", type : "numeric", numericFormat : marketCapFormat,
+                        readOnly: true, width: 90, className: "htMiddle htCenter text-smallest" },
+                    { title : "MC 24h", data : "marketCapChange24h", type : "numeric", numericFormat : percentFormat,
+                        readOnly: true, width: 60, renderer : priceColorRenderer },
+                    { title : "Circ. supply", data : "circulatingSupply", type : "numeric", readOnly: true,
+                        className: "htMiddle htCenter text-smallest", width : 70 },
+
+                    { title : "% of BTC MC", data : "btcMcFraction", type : "numeric", numericFormat : percentFormat2dec,
+                        readOnly: true, width: 65 },
+                    { title : "at 0.5%", data : "priceAt05", type : "numeric", numericFormat : priceFormat,
+                        readOnly: true, width: 80 },
+                    { title : "at 1%", data : "priceAt1", type : "numeric", numericFormat : priceFormat,
+                        readOnly: true, width: 80 },
+                    { title : "at 2%", data : "priceAt2", type : "numeric", numericFormat : priceFormat,
+                        readOnly: true, width: 80 },
+                    { title : "at 5%", data : "priceAt5", type : "numeric", numericFormat : priceFormat,
+                        readOnly: true, width: 80 },
+                    { title : "at 10%", data : "priceAt10", type : "numeric", numericFormat : priceFormat,
+                        readOnly: true, width: 80 },
+                    { title : "at 20%", data : "priceAt20", type : "numeric", numericFormat : priceFormat,
+                        readOnly: true, width: 80 },
+                    { title : "at 30%", data : "priceAt30", type : "numeric", numericFormat : priceFormat,
+                        readOnly: true, width: 80 },
                 ],
+
+                // nestedHeaders: [
+                //     [{ label: '', colspan: 14 }, { label: 'Price if coin reaches % of BTC market cap', colspan: 7}],
+                //     ['Symbol', 'ID', 'BR', 'Price', '7D', 'From ATH', '24h', '7D', '30D', '200D',
+                //         'Market cap', 'MC rank', 'Circ. supply', '% of BTC MC', 'at 0.5%', 'at 1%',
+                //         'at 2%', 'at 5%', 'at 10%', 'at 20%', 'at 30%', ]
+                // ],
 
                 colHeaders          : true,
                 // rowHeaders          : true,
@@ -181,14 +174,16 @@ export default {
                 dropdownMenu        : true,
                 currentRowClassName : 'currentRow',
                 currentColClassName : 'currentCol',
-                // autoRowSize     : false,
                 autoColumnSize      : true,
                 fixedRowsTop        : 1,
                 fixedColumnsLeft    : 1,
                 columnSorting       : true,
                 // width: '100%',
-
-
+                className           : "htMiddle",
+                
+                afterGetColHeader: function(col, TH) {
+                    TH.className = 'htMiddle';
+                },
 
                 afterChange         : async (change, source) => {
                     console.log(`Data changed, source: ${source}`);
@@ -209,7 +204,6 @@ export default {
                             if (prop === "coingeckoId") {
                                 log.log(logTag, `Editing ${oldValue}.${prop}: ${oldValue} -> ${newValue}`);
 
-                                console.log("dopice");
                                 // delete the old coin
                                 await coinsCollection.doc(oldValue).delete();
                                 log.log(logTag, `Deleted coin: ${oldValue}`);
@@ -284,7 +278,7 @@ export default {
 
             this.reloading = true;
 
-            const coinData = await getCoinData(keys(coins), baseCurrency);
+            const coinData = await getCoinMarketData(keys(coins), baseCurrency);
 
             const bitcoin = find(coinData, { id : "bitcoin" });
             // console.log(bitcoin);
@@ -293,6 +287,15 @@ export default {
 
             // just a helper to calculate price of coin at certain bitcoin market cap fraction
             const priceAtMCFraction = (fraction, circulatingSupply) => fraction * bitcoin.market_cap / circulatingSupply;
+
+            // @note: starting from the end, i.e. always including the last (latest) data point
+            const everyNth = (array, n) => {
+                let newArray = [];
+                for (let i = array.length - 1; i >= 0; i -= n) {
+                    newArray.push(array[i]);
+                }
+                return newArray.reverse();
+            }
 
             const newTableData = map(coinData, (coin) => {
                 currentCoinId++;
@@ -304,14 +307,17 @@ export default {
                     circulatingSupply   : Math.floor(coin.circulating_supply),
 
                     price               : coin.current_price,
+                    sparkline7d         : everyNth(coin.sparkline_in_7d?.price, 3),
                     fromAth             : coin.ath_change_percentage / 100,
+                    fromAthDays         : relativeDays(coin.ath_date),
                     priceChange24h      : coin.price_change_percentage_24h_in_currency / 100,
                     priceChange7d       : coin.price_change_percentage_7d_in_currency / 100,
                     priceChange30d      : coin.price_change_percentage_30d_in_currency / 100,
                     priceChange200d     : coin.price_change_percentage_200d_in_currency / 100,
 
-                    marketCap           : coin.market_cap,
                     marketCapRank       : coin.market_cap_rank,
+                    marketCap           : coin.market_cap,
+                    marketCapChange24h  : coin.market_cap_change_percentage_24h / 100,
 
                     btcMcFraction       : coin.market_cap / bitcoin.market_cap,
                     priceAt05           : priceAtMCFraction(0.005, coin.circulating_supply),
@@ -324,6 +330,8 @@ export default {
                 }
             });
 
+            // console.log(newTableData);
+
             this.$refs.table.hotInstance.loadData(newTableData);
             this.reloading = false;
         }
@@ -333,15 +341,36 @@ export default {
 <!---------------------------------------------------------------------------->
 <style src="../../node_modules/handsontable/dist/handsontable.full.css"></style>
 <style>
-    td.currentRow, td.currentCol {
+    .handsontable td.currentRow,  .handsontable td.currentCol {
         background-color: rgba(44, 62, 80, 0.12);
     }
+    .handsontable td, .handsontable th { font-size: 14px; }
+    .handsontable td.text-smaller { font-size: 11px; }
+    .handsontable td.text-smallest { font-size: 10px; }
+    .handsontable td.htDimmed { color: black; }
+    .handsontable th { white-space: normal !important; }
 
-    .handsontable td.htDimmed {
-        color: black;
+    .handsontable span.colHeader {
+        height: 71px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
-    .coinSymbol { font-weight: bold; }
+    .changeType {
+        position: absolute;
+        right: 0;
+        top: 0;
+    }
+
+    .text-red { color : #B30F0FFF; }
+    .text-green { color : #289f05; }
+
+
+    .coinSymbol {
+        font-weight: bold;
+        background-color: #f0f0f0;
+    }
 
     #table-wrapper {
         margin: 30px 0;
@@ -358,10 +387,31 @@ export default {
     td.editable {
         color: #3535ed;
     }
+
+    #market-caps .chart {
+        position: relative;
+        /*height: 94px !important;*/
+        /*width: 192px !important;*/
+        height: 70px !important;
+        width: 165px !important;
+        overflow: hidden;
+    }
+
+    #market-caps .chart canvas {
+        max-height: 100% !important;
+        max-width: 100% !important;
+    }
+
+    .description {
+        font: 0.86em sans-serif;
+    }
 </style>
 <style scoped>
     h1 {
         margin-top: 10px;
         margin-bottom: 10px;
     }
+
+
+
 </style>

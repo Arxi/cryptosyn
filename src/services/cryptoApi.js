@@ -1,24 +1,28 @@
 import axios from 'axios';
-
+import log from "./logger";
 const logTag = "cryptoApiService";
 const coingeckoBaseApiUrl = "https://api.coingecko.com/api/v3";
 
-export const getCoinData = async (coinIdArray, base) => {
+export const getCoinMarketData = async (coinIdArray, base) => {
     const coinIds = coinIdArray.join(",");
-    console.log(`[${logTag}] getCoinData: ${coinIds}-${base}`);
+    log.log(logTag, `getCoinData: ${coinIds}-${base}`);
 
     let response = await axios.get(`${coingeckoBaseApiUrl}/coins/markets?` +
         `vs_currency=${base}&` +
         `ids=${coinIds}&` +
+        `per_page=250&` +
+        `sparkline=true&` +
         `price_change_percentage=1h,24h,7d,30d,200d,1y`
     );
+
+    log.log(logTag, response.data);
 
     return response.data;
 };
 
 
 export default {
-    getCoinData
+    getCoinMarketData
 }
 
 /*
@@ -51,7 +55,95 @@ price_change_percentage_24h_in_currency: -2.5838652622422904
 price_change_percentage_30d_in_currency: 29.162396476645313
 price_change_percentage_200d_in_currency: 566.4408610342741
 roi: {times: 51.27623808080509, currency: "btc", percentage: 5127.623808080509}
+sparkline_in_7d: { price: [] }
 symbol: "eth"
 total_supply: null
 total_volume: 36273433902
 */
+
+/*
+synthetix
+yearn finance
+maker
+compound
+chainlink
+zrx 0x
+celer network
+elrond gold
+balancer
+binance coin
+stacks
+hegic
+kyber network
+bancor
+aergo
+
+chiliz
+
+hoge
+rocket pool
+
+1inch
+band
+graphlinq
+
+alchemix
+
+https://cryptosyn.web.app/
+
+ */
+
+
+/*
+const coinIds = [
+    "bitcoin",
+    "ethereum",
+    "ripple",
+    "audius",
+    "decentraland",
+    "cardano",
+    "ontology",
+    "neo",
+    "monero",
+    "dogecoin",
+    "eos",
+    "verge",
+    "basic-attention-token",
+    "district0x",
+    "vechain",
+    "theta-token",
+    // "theta-fuel",
+    "ardor",
+    "ignis",
+    "siacoin",
+    "tezos",
+    "digibyte",
+    "tron",
+    "cosmos",
+    "stellar",
+    "polkadot",
+    "litecoin",
+    "nem",
+    "waves",
+    "einsteinium",
+    "syscoin",
+    "api3",
+    "kin",
+    "qtum",
+    "phantasma",
+    "uniswap",
+    "augur",
+    "golem",
+    "metal",
+    "zcash",
+    "bitcoin-cash",
+    "dash",
+    "ocean-protocol",
+    "aave",
+    "kardiachain",
+    "bondly",
+    "harmony",
+    "darwinia-network-native-token"
+];
+
+ */
