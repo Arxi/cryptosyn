@@ -1,13 +1,16 @@
 import axios from 'axios';
+import { find } from "lodash";
 import log from "./logger";
 const logTag = "cryptoApiService";
 const coingeckoBaseApiUrl = "https://api.coingecko.com/api/v3";
+
+let allCoinsList = null;
 
 export const getCoinMarketData = async (coinIdArray, base) => {
     const coinIds = coinIdArray.join(",");
     log.log(logTag, `getCoinData: ${coinIds}-${base}`);
 
-    let response = await axios.get(`${coingeckoBaseApiUrl}/coins/markets?` +
+    const response = await axios.get(`${coingeckoBaseApiUrl}/coins/markets?` +
         `vs_currency=${base}&` +
         `ids=${coinIds}&` +
         `per_page=250&` +
@@ -18,6 +21,34 @@ export const getCoinMarketData = async (coinIdArray, base) => {
     log.log(logTag, response.data);
 
     return response.data;
+};
+
+export const getCoinBySymbol = async (coinSymbol) => {
+    const theSymbol = coinSymbol.toLowerCase();
+    log.log(logTag, `Searching for coin: ${theSymbol}`);
+
+    if (allCoinsList === null ) {
+        const response = await axios.get(`${coingeckoBaseApiUrl}/coins/list`);
+        log.log(logTag, response);
+
+        if (!response || response.status !== 200 || !response.data) {
+            throw response;
+        }
+
+        // caching the result
+        allCoinsList = response.data;
+    }
+
+    const result = find(allCoinsList, { symbol : theSymbol });
+
+    if (!result) {
+        throw {
+            status      : 1453,
+            statusText  : `No coin with symbol ${coinSymbol.toUpperCase()} found.`
+        };
+    }
+
+    return result;
 };
 
 

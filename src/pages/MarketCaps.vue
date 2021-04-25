@@ -14,10 +14,13 @@
         </button>
 
         <br />
-        <template v-if="isLoggedIn">
-            <input type="text" placeholder="enter coingecko id" v-model="newCoin">
-            <button @click="onAddNewCoin">add coin</button>
-        </template>
+
+        <div v-if="isLoggedIn" class="add-coin-wrapper">
+            <input type="text" placeholder="enter coin symbol" v-model="coinToSearchFor">
+            <button @click="onSearchNewCoin">add coin</button>
+        </div>
+
+        <status-message :text="statusText" :status="statusCode" :className="statusClass" />
 
         <div id="table-wrapper">
             <hot-table :data="tableData" :settings="settings" licenseKey="non-commercial-and-evaluation"
@@ -27,6 +30,7 @@
 
         <a href="https://api.coingecko.com/api/v3/coins/list">Search for new coin IDs here</a>
 
+        <loader v-show="reloading"/>
     </div>
 </template>
 <!---------------------------------------------------------------------------->
@@ -34,10 +38,13 @@
 /* eslint-disable vue/no-unused-components,no-unused-vars */
 import { HotTable, HotColumn } from '@handsontable/vue';
 import { map, find, keys } from "lodash";
-import { getCoinMarketData } from "../services/cryptoApi";
+import { getCoinMarketData, getCoinBySymbol } from "../services/cryptoApi";
 import { auth, coinsCollection } from "../services/firebase";
 import { sparklineRenderer, priceColorRenderer } from "../services/hotUtils";
-import { relativeDays } from "../services/utils";
+import { relativeDays, everyNth } from "../services/utils";
+import Loader from "../components/Loader";
+import StatusMessage from "../components/StatusMessage";
+
 import log from "../services/logger";
 const logTag = "MarketCaps";
 
@@ -51,10 +58,11 @@ const percentFormat2dec = { pattern: '0.00%' };
 export default {
     name: logTag,
 
-    components: { HotTable, HotColumn },
+    components: { HotTable, HotColumn, Loader, StatusMessage },
 
     async mounted() {
-        console.log(`[${logTag}] mounted`);
+        log.log(logTag, `=================== mounted =================== `);
+        console.log(auth);
 
         this.isLoggedIn = !!auth.currentUser;
 
@@ -70,7 +78,12 @@ export default {
 
             isLoggedIn : false,
 
-            newCoin : "",
+            myCoins             : {},
+            coinToSearchFor     : "",
+
+            statusText          : "",
+            statusCode          : 0,
+            statusClass         : "info",
 
             // this is what the table uses. Has to be set via HOT API
             tableData : [],
@@ -180,7 +193,7 @@ export default {
                 columnSorting       : true,
                 // width: '100%',
                 className           : "htMiddle",
-                
+
                 afterGetColHeader: function(col, TH) {
                     TH.className = 'htMiddle';
                 },
@@ -191,6 +204,11 @@ export default {
 
                     if (!auth.currentUser) {
                         log.log(logTag, `Not logged in!`);
+                        this.setStatus(
+                            "You are not signed in, or don't have necessary permissions!",
+                            0,
+                            "error"
+                        );
                         return;
                     }
 
@@ -224,10 +242,21 @@ export default {
 
                             await coinsCollection.doc(coinId).set({[prop]: newValue});
                             console.log(`${coinId}.${prop} successfully changed to ${newValue}`);
+                            this.setStatus(
+                                `${coinId}.${prop} successfully changed from ${oldValue} to ${newValue}`,
+                                0,
+                                "success"
+                            );
+
 
                         } catch (error) {
                             log.log(logTag, `Error while editing document!`);
                             log.log(logTag, error);
+                            this.setStatus(
+                                `Error while editing ${row}.${prop}: ${oldValue} -> ${newValue}!`,
+                                0,
+                                "error"
+                            );
                         }
                     }
                 }
@@ -238,23 +267,68 @@ export default {
 
 
     methods: {
-        async onAddNewCoin() {
-            if (!this.newCoin) {
+        setStatus(text, status, className) {
+            if (text === null) {
+                this.statusText = "";
+                this.statusCode = 0;
+                this.statusClass = "info";
+            } else {
+                this.statusText = text;
+                this.statusCode = status;
+                this.statusClass = className;
+            }
+        },
+
+        async onSearchNewCoin() {
+            if (!this.coinToSearchFor) {
                 return;
             }
+
+            this.setStatus(null);
 
             if (!auth.currentUser) {
                 log.log(logTag, `Not logged in!`);
+                this.setStatus(
+                    "You are not signed in, or don't have necessary permissions!",
+                    0,
+                    "error"
+                );
                 return;
             }
 
-            await this.addNewCoin(this.newCoin);
-            this.newCoin = "";
+            this.reloading = true;
+
+            try {
+                const searchResults = await getCoinBySymbol(this.coinToSearchFor);
+                log.log(logTag, searchResults);
+
+                if (this.myCoins[searchResults.id]) {
+                    this.setStatus(
+                        `Coin ${searchResults.name} (${searchResults.symbol.toUpperCase()}) is already in the table :)`,
+                        0, "info"
+                    );
+                    this.reloading = false;
+                    return;
+                }
+
+                await this.addNewCoin(searchResults.id);
+                this.setStatus(
+                    `Coin added: ${searchResults.name} (${searchResults.symbol.toUpperCase()})`,
+                    0, "success"
+                );
+                this.coinToSearchFor = "";
+
+            } catch (error) {
+                log.log(logTag, "Error while searching for coin");
+                log.log(logTag, error);
+                this.setStatus(error.statusText, error.status, "error");
+            }
+
+            this.reloading = false;
         },
 
         async addNewCoin(coinId) {
             log.log(logTag, `Adding new coin: ${coinId}`);
-            // @todo: check if it exists
 
             try {
                 await coinsCollection.doc(coinId).set(
@@ -266,6 +340,7 @@ export default {
             } catch(error) {
                 log.log(logTag, `Error adding coin "${coinId}!"`);
                 log.log(logTag, error);
+                this.setStatus("Error while adding code to DB!", 0, "error");
             }
         },
 
@@ -273,6 +348,7 @@ export default {
             const snapshot = await coinsCollection.get();
             let coins = {};
             snapshot.forEach((doc) => coins[doc.id] = doc.data());
+            this.myCoins = coins;
             console.log(coins);
 
 
@@ -288,14 +364,6 @@ export default {
             // just a helper to calculate price of coin at certain bitcoin market cap fraction
             const priceAtMCFraction = (fraction, circulatingSupply) => fraction * bitcoin.market_cap / circulatingSupply;
 
-            // @note: starting from the end, i.e. always including the last (latest) data point
-            const everyNth = (array, n) => {
-                let newArray = [];
-                for (let i = array.length - 1; i >= 0; i -= n) {
-                    newArray.push(array[i]);
-                }
-                return newArray.reverse();
-            }
 
             const newTableData = map(coinData, (coin) => {
                 currentCoinId++;
@@ -369,11 +437,11 @@ export default {
 
     .coinSymbol {
         font-weight: bold;
-        background-color: #f0f0f0;
+        background-color: #f0f0f0 !important;
     }
 
     #table-wrapper {
-        margin: 30px 0;
+        margin: 10px 0;
         /*width: 100%;*/
         /*overflow-x: scroll;*/
         /*overflow-y: visible;*/
@@ -412,6 +480,9 @@ export default {
         margin-bottom: 10px;
     }
 
+    .add-coin-wrapper {
+        margin-top: 10px;
+    }
 
 
 </style>
