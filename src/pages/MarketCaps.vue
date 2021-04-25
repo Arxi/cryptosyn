@@ -204,6 +204,10 @@ export default {
                     console.log(`Data changed, source: ${source}`);
                     console.log(change);
 
+                    if (source !== "edit" ) {
+                        return;
+                    }
+
                     if (!auth.currentUser) {
                         log.log(logTag, `Not logged in!`);
                         this.setStatus(
@@ -211,10 +215,6 @@ export default {
                             0,
                             "error"
                         );
-                        return;
-                    }
-
-                    if (source !== "edit" ) {
                         return;
                     }
 
