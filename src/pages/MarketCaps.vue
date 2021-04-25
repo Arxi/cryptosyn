@@ -38,7 +38,7 @@
 /* eslint-disable vue/no-unused-components,no-unused-vars */
 import { HotTable, HotColumn } from '@handsontable/vue';
 import { map, find, keys } from "lodash";
-import { getCoinMarketData, getCoinBySymbol } from "../services/cryptoApi";
+import { getCoinMarketData, findCoinBySymbol, findCoinByCoingeckoId } from "../services/cryptoApi";
 import { auth, coinsCollection } from "../services/firebase";
 import { sparklineRenderer, priceColorRenderer } from "../services/hotUtils";
 import { relativeDays, everyNth } from "../services/utils";
@@ -212,52 +212,76 @@ export default {
                         return;
                     }
 
-                    if (source === "edit" ) {
-                        const [row, prop, oldValue, newValue] = change[0];
-                        if (oldValue === newValue) {
-                            return;
-                        }
+                    if (source !== "edit" ) {
+                        return;
+                    }
 
-                        try {
-                            if (prop === "coingeckoId") {
-                                log.log(logTag, `Editing ${oldValue}.${prop}: ${oldValue} -> ${newValue}`);
+                    const [row, prop, oldValue, newValue] = change[0];
+                    if (oldValue === newValue) {
+                        return;
+                    }
 
-                                // delete the old coin
-                                await coinsCollection.doc(oldValue).delete();
-                                log.log(logTag, `Deleted coin: ${oldValue}`);
-                                if (!newValue) {
-                                    this.reloadTable();
+                    try {
+                        if (prop === "coingeckoId") {
+                            log.log(logTag, `Editing ${oldValue}.${prop}: ${oldValue} -> ${newValue}`);
+
+                            // if we are adding a new coin, we need to check whether it exists and whether
+                            // we don't have it in the table already
+                            if (newValue) {
+                                let newCoin;
+
+                                try {
+                                    newCoin = await findCoinByCoingeckoId(newValue);
+                                } catch (error) {
+                                    this.setStatus(error.statusText, error.status, "error");
                                     return;
                                 }
 
-                                // add the new coin
-                                await this.addNewCoin(newValue);
+                                if (this.myCoins[newCoin.id]) {
+                                    this.setStatus(
+                                        `Coin ${newCoin.name} (${newCoin.symbol.toUpperCase()}) is already in the table :)`,
+                                        0, "info"
+                                    );
+                                    return;
+                                }
+                            }
+
+
+                            // delete the old coin
+                            await coinsCollection.doc(oldValue).delete();
+                            log.log(logTag, `Deleted coin: ${oldValue}`);
+                            if (!newValue) {
+                                this.reloadTable();
                                 return;
                             }
 
-                            const coinId = this.$refs.table.hotInstance.getDataAtRowProp(row, "coingeckoId");
-                            log.log(logTag, `Editing ${coinId}.${prop}: ${oldValue} -> ${newValue}`);
-
-                            // @todo only if valid!
-
-                            await coinsCollection.doc(coinId).set({[prop]: newValue});
-                            console.log(`${coinId}.${prop} successfully changed to ${newValue}`);
-                            this.setStatus(
-                                `${coinId}.${prop} successfully changed from ${oldValue} to ${newValue}`,
-                                0,
-                                "success"
-                            );
-
-
-                        } catch (error) {
-                            log.log(logTag, `Error while editing document!`);
-                            log.log(logTag, error);
-                            this.setStatus(
-                                `Error while editing ${row}.${prop}: ${oldValue} -> ${newValue}!`,
-                                0,
-                                "error"
-                            );
+                            // add the new coin
+                            await this.addNewCoin(newValue);
+                            return;
                         }
+
+                        const coinId = this.$refs.table.hotInstance.getDataAtRowProp(row, "coingeckoId");
+                        log.log(logTag, `Editing ${coinId}.${prop}: ${oldValue} -> ${newValue}`);
+
+                        // @todo only if valid!
+
+                        await coinsCollection.doc(coinId).set({[prop]: newValue});
+                        console.log(`${coinId}.${prop} successfully changed to ${newValue}`);
+                        this.setStatus(
+                            `${coinId}.${prop} successfully changed from ${oldValue} to ${newValue}`,
+                            0,
+                            "success"
+                        );
+
+
+                    } catch (error) {
+                        log.log(logTag, `Error while editing document!`);
+                        log.log(logTag, error);
+                        this.setStatus(
+                            `Error while editing ${row}.${prop}: ${oldValue} -> ${newValue}!`,
+                            0,
+                            "error"
+                        );
                     }
                 }
             }
@@ -299,7 +323,7 @@ export default {
             this.reloading = true;
 
             try {
-                const searchResults = await getCoinBySymbol(this.coinToSearchFor);
+                const searchResults = await findCoinBySymbol(this.coinToSearchFor);
                 log.log(logTag, searchResults);
 
                 if (this.myCoins[searchResults.id]) {

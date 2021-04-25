@@ -23,28 +23,49 @@ export const getCoinMarketData = async (coinIdArray, base) => {
     return response.data;
 };
 
-export const getCoinBySymbol = async (coinSymbol) => {
-    const theSymbol = coinSymbol.toLowerCase();
-    log.log(logTag, `Searching for coin: ${theSymbol}`);
-
-    if (allCoinsList === null ) {
-        const response = await axios.get(`${coingeckoBaseApiUrl}/coins/list`);
-        log.log(logTag, response);
-
-        if (!response || response.status !== 200 || !response.data) {
-            throw response;
-        }
-
-        // caching the result
-        allCoinsList = response.data;
+const fetchAllCoinsList = async () => {
+    if (allCoinsList !== null ) {
+        return allCoinsList;
     }
 
-    const result = find(allCoinsList, { symbol : theSymbol });
+    const response = await axios.get(`${coingeckoBaseApiUrl}/coins/list`);
+    log.log(logTag, response);
+
+    if (!response || response.status !== 200 || !response.data) {
+        throw response;
+    }
+
+    // caching the result
+    allCoinsList = response.data;
+    return allCoinsList;
+}
+
+export const findCoinBySymbol = async (coinSymbol) => {
+    const theSymbol = coinSymbol.toLowerCase();
+    log.log(logTag, `Searching for coin by symbol: ${theSymbol}`);
+
+    const allCoins = await fetchAllCoinsList();
+    const result = find(allCoins, { "symbol" : theSymbol });
 
     if (!result) {
         throw {
-            status      : 1453,
+            status      : 0,
             statusText  : `No coin with symbol ${coinSymbol.toUpperCase()} found.`
+        };
+    }
+
+    return result;
+};
+
+export const findCoinByCoingeckoId = async (coingeckoId) => {
+    log.log(logTag, `Searching for coin by ID: ${coingeckoId}`);
+    const allCoins = await fetchAllCoinsList();
+    const result = find(allCoins, { "id" : coingeckoId });
+
+    if (!result) {
+        throw {
+            status      : 0,
+            statusText  : `No coin with ID "${coingeckoId}" found.`
         };
     }
 
@@ -53,7 +74,9 @@ export const getCoinBySymbol = async (coinSymbol) => {
 
 
 export default {
-    getCoinMarketData
+    getCoinMarketData,
+    findCoinBySymbol,
+    findCoinByCoingeckoId,
 }
 
 /*

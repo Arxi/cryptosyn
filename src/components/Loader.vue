@@ -3,7 +3,7 @@
     >
         <div class="loader"></div>
         <div class="loader-text">
-            Loading coins, connecting to Coinecko API, parsing the response etc etc
+            Connecting to Coingecko API, parsing the response etc etc
         </div>
     </div>
 </template>
