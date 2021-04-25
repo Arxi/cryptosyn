@@ -190,7 +190,7 @@ export default {
                 currentRowClassName : 'currentRow',
                 currentColClassName : 'currentCol',
                 autoColumnSize      : true,
-                fixedRowsTop        : 1,
+                // fixedRowsTop        : 1,
                 fixedColumnsLeft    : 1,
                 columnSorting       : true,
                 // width: '100%',
