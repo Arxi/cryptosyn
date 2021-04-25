@@ -16,7 +16,10 @@
         <br />
 
         <div v-if="isLoggedIn" class="add-coin-wrapper">
-            <input type="text" placeholder="enter coin symbol" v-model="coinToSearchFor">
+            <input type="text" placeholder="enter coin symbol"
+                   v-model="coinToSearchFor"
+                   @keyup.enter="onSearchNewCoin"
+            >
             <button @click="onSearchNewCoin">add coin</button>
         </div>
 
