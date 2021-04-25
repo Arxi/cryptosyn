@@ -24,6 +24,8 @@
         </div>
 
         <status-message :text="statusText" :status="statusCode" :className="statusClass" />
+        <div class="status-message-placeholder" v-show="!statusText"></div>
+
 
         <div id="table-wrapper">
             <hot-table :data="tableData" :settings="settings" licenseKey="non-commercial-and-evaluation"
@@ -31,7 +33,7 @@
             ></hot-table>
         </div>
 
-        <a href="https://api.coingecko.com/api/v3/coins/list">Search for new coin IDs here</a>
+<!--        <a href="https://api.coingecko.com/api/v3/coins/list">Search for new coin IDs here</a>-->
 
         <loader v-show="reloading"/>
     </div>
@@ -65,10 +67,7 @@ export default {
 
     async mounted() {
         log.log(logTag, `=================== mounted =================== `);
-        console.log(auth);
-
         this.isLoggedIn = !!auth.currentUser;
-
         this.$nextTick(() => {
             this.reloadTable();
         });
@@ -502,13 +501,17 @@ export default {
     }
 </style>
 <style scoped>
-    h1 {
+    h1, h3 {
         margin-top: 10px;
         margin-bottom: 10px;
     }
 
     .add-coin-wrapper {
         margin-top: 10px;
+    }
+
+    .status-message-placeholder {
+        height: 38px;
     }
 
 

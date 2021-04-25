@@ -17,29 +17,41 @@ Chart.register(
 );
 // import Chart from 'chart.js/auto';
 
+// inspired by https://handsontable.com/blog/articles/2017/10/integrating-handsontable-with-chart-js
 export const sparklineRenderer = (instance, td, row, column, prop, value, cellProperties) => {
-    if (!td.hasChildNodes()) {
+    // const coingeckoId = instance.getDataAtRowProp(row, 'coingeckoId');
+    // console.log(`=============== sparklineRenderer: ${coingeckoId}`);
+    // some original code
+    // if (!td.hasChildNodes()) {
+    //     if (cellProperties.chart) {
+    //         cellProperties.chart.destroy();
+    //         cellProperties.chart = void 0;
+    //     }
+    // } else if (cellProperties.chart) {
+    //     cellProperties.chart.update();
+    //     return td;
+    // }
+
+    // this should prevent double charts and missing charts on sorting, table reload, table edit etc
+    if (td.hasChildNodes()) {
         if (cellProperties.chart) {
             cellProperties.chart.destroy();
             cellProperties.chart = void 0;
         }
-    } else if (cellProperties.chart) {
-        cellProperties.chart.update();
-        return td;
+        td.innerHTML = "";
     }
 
-    var sparkline = instance.getDataAtRowProp(row, 'sparkline7d');
-
-    var chartContainer = document.createElement('div');
+    // create the canvas onto which the chart can be constructed
+    const chartContainer = document.createElement('div');
     chartContainer.className = 'chart';
-    var chartCanvas = document.createElement('canvas');
+    const chartCanvas = document.createElement('canvas');
     chartContainer.appendChild(chartCanvas);
     td.appendChild(chartContainer);
 
-    // sparkline = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
-    //
 
-    // generate the labels
+    const sparkline = instance.getDataAtRowProp(row, 'sparkline7d');
+
+    // generate the date labels
     const now = Date.now();
     const n = 3;    // depends on "everyNth" - how the decimation was done
     const labels = [];
@@ -50,12 +62,9 @@ export const sparklineRenderer = (instance, td, row, column, prop, value, cellPr
         const timeString = tickDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         labels.push(`${dateString} ${timeString}`);
     }
-    // console.log(labels);
 
-
-    // determine the chart color
+    // determine the sparkline chart color
     const chartColor = sparkline[0] > sparkline[sparkline.length - 1] ? "#B30F0FFF" : "#289f05";
-
 
     cellProperties.chart = new Chart(chartCanvas.getContext('2d'), {
         type: 'line',
@@ -75,8 +84,6 @@ export const sparklineRenderer = (instance, td, row, column, prop, value, cellPr
             animation: false,
             responsive: true,
             // showLine: false, // disable for all datasets
-
-
             tooltips: {
                 mode: 'point',
                 intersect: false,
