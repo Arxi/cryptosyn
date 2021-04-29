@@ -1,14 +1,20 @@
+/* eslint-disable no-unused-vars */
 import axios from 'axios';
 import { find } from "lodash";
+import { waitFor, roundPrice } from "./utils";
 import log from "./logger";
 const logTag = "cryptoApiService";
+
+// @note coingecko API is limited to 100 requests per minute
 const coingeckoBaseApiUrl = "https://api.coingecko.com/api/v3";
+// const flipsideBaseApiUrl = "https://api.flipsidecrypto.com/api/v2";
+// const flipsideApiKey = "9011f9cb-0d08-4e73-a367-ada5d26ad9e0";
 
 let allCoinsList = null;
 
 export const getCoinMarketData = async (coinIdArray, base) => {
     const coinIds = coinIdArray.join(",");
-    log.log(logTag, `getCoinData: ${coinIds}-${base}`);
+    log.log(logTag, `getCoinData: ${coinIds} vs_currency=${base}`);
 
     const response = await axios.get(`${coingeckoBaseApiUrl}/coins/markets?` +
         `vs_currency=${base}&` +
@@ -21,6 +27,69 @@ export const getCoinMarketData = async (coinIdArray, base) => {
     log.log(logTag, response.data);
 
     return response.data;
+};
+
+export const getCoinMarketChart = async (coinId, base) => {
+    log.log(logTag, `getCoinMarketChart: ${coinId} vs_currency=${base}`);
+
+    const response = await axios.get(`${coingeckoBaseApiUrl}/coins/${coinId}/market_chart?` +
+        `vs_currency=${base}&` +
+        `days=730&` +
+        `interval=daily`
+    );
+
+    log.log(logTag, response.data);
+    return response.data;
+};
+
+export const calculateSMA = async (coinIds, base) => {
+    log.log(logTag, `calculateSMA`);
+
+    let smas = {};
+
+    for (let i = 0; i < coinIds.length; i++) {
+        const coinId = coinIds[i];
+        const chartData = await getCoinMarketChart(coinId, base);
+        // console.log(chartData);
+
+        if (!chartData || !chartData.prices) {
+            log.log(logTag, `No chart data for ${coinId}!`);
+            log.log(logTag, chartData);
+            continue;
+        }
+
+        const slice20d = chartData.prices.slice(Math.max(chartData.prices.length - 20, 0));
+        const slice60d = chartData.prices.slice(Math.max(chartData.prices.length - 60, 0));
+        const slice100d = chartData.prices.slice(Math.max(chartData.prices.length - 100, 0));
+        const slice200d = chartData.prices.slice(Math.max(chartData.prices.length - 200, 0));
+        const slice2y = chartData.prices.slice(Math.max(chartData.prices.length - 730, 0));
+
+        // console.log(slice20d);
+        const sma20d = slice20d.length === 20
+            ? roundPrice(slice20d.reduce((accumulator, current) => accumulator + current[1], 0) / 20)
+            : null;
+        const sma60d = slice60d.length === 60
+            ? roundPrice(slice60d.reduce((accumulator, current) => accumulator + current[1], 0) / 60)
+            : null;
+        const sma100d = slice100d.length === 100
+            ? roundPrice(slice100d.reduce((accumulator, current) => accumulator + current[1], 0) / 100)
+            : null;
+        const sma200d = slice200d.length === 200
+            ? roundPrice(slice200d.reduce((accumulator, current) => accumulator + current[1], 0) / 200)
+            : null;
+        const sma2y = slice2y.length === 730
+            ? roundPrice(slice2y.reduce((accumulator, current) => accumulator + current[1], 0) / 730)
+            : null;
+        const sma5x2y = sma2y !== null ? 5 * sma2y : null;
+
+        smas[coinId] = { sma20d, sma60d, sma100d, sma200d, sma2y, sma5x2y };
+
+        // coingecko API is limited to 100 requests per minute
+        await waitFor(750);
+    }
+
+    // console.log(smas);
+    return smas;
 };
 
 const fetchAllCoinsList = async () => {
@@ -75,6 +144,7 @@ export const findCoinByCoingeckoId = async (coingeckoId) => {
 
 export default {
     getCoinMarketData,
+    getCoinMarketChart,
     findCoinBySymbol,
     findCoinByCoingeckoId,
 }
@@ -116,12 +186,12 @@ total_volume: 36273433902
 */
 
 /*
-synthetix
-yearn finance
+synthetix snx
+yearn finance YFI
 maker
-compound
-chainlink
-zrx 0x
+compound COMP
+chainlink LINK
+zrx     0x
 celer network
 elrond gold
 balancer

@@ -29,7 +29,7 @@
 
 
         <div id="table-wrapper">
-            <hot-table :data="tableData" :settings="settings" licenseKey="non-commercial-and-evaluation"
+            <hot-table :data="tableData" :settings="toolSettings" licenseKey="non-commercial-and-evaluation"
                        ref="table" className="hot-table"
             ></hot-table>
         </div>
@@ -43,11 +43,11 @@
 <script>
 /* eslint-disable vue/no-unused-components,no-unused-vars */
 import { HotTable } from '@handsontable/vue';
-import { map, find, keys } from "lodash";
+import { map, find, keys, assign, forEach } from "lodash";
 import { getCoinMarketData, findCoinBySymbol, findCoinByCoingeckoId, calculateSMA } from "../services/cryptoApi";
 import { auth } from "../services/firebase";
-import { sparklineRenderer, priceColorRenderer } from "../services/hotUtils";
-import { relativeDays, everyNth } from "../services/utils";
+import { toolColumns } from "../services/hotUtils";
+import { relativeDays, everyNth, priceAtMCFraction } from "../services/utils";
 import Loader from "../components/Loader";
 import StatusMessage from "../components/StatusMessage";
 
@@ -55,11 +55,6 @@ import log from "../services/logger";
 const logTag = "TableTool";
 
 const baseCurrency = "usd";
-// http://numbrojs.com/old-format.html
-const priceFormat = { pattern: '$0,00.00', culture: 'en-US' };
-const marketCapFormat = { pattern: '$0,00', culture: 'en-US' };
-const percentFormat = { pattern: '0.0%' };
-const percentFormat2dec = { pattern: '0.00%' };
 
 export default {
     name: logTag,
@@ -94,10 +89,13 @@ export default {
             statusClass         : "info",
 
             // this is what the table uses. Has to be set via HOT API
+            // @todo: actually this doesn't seem to get ever populated
             tableData : [],
 
+            latestTableData     : {},
+
             // HOT settings
-            settings: {
+            toolSettings: {
                 // since we don't provide tableData from start, we have to provide the schema
                 dataSchema: {
                     id                  : null,
@@ -112,6 +110,13 @@ export default {
                     priceChange7d       : null,
                     priceChange30d      : null,
                     priceChange200d     : null,
+
+                    sma20d              : null,
+                    sma60d              : null,
+                    sma100d             : null,
+                    sma200d             : null,
+                    sma2y               : null,
+                    sma5x2y             : null,
 
                     marketCapRank       : null,
                     marketCap           : null,
@@ -128,58 +133,7 @@ export default {
                     priceAt30           : null,
                 },
 
-                columns             : [
-                    { title : "Symbol", data : "coinSymbol", type : "text", readOnly: true,
-                        className: "coinSymbol htMiddle", width : 60 },
-                    { title : "ID", data : "coingeckoId", type : "text", readOnly: false,
-                        className: "editable htMiddle text-smaller", width : 80 },
-                    { title : "BR", data : "baserank", type : "numeric", readOnly: false,
-                        className: "editable htMiddle htCenter", width : 40},
-
-                    { title : "Price", data : "price", type : "numeric", numericFormat : priceFormat,
-                        readOnly: true, width : 80 },
-                    { title : "Price 7D", width: 170, renderer : sparklineRenderer, readOnly: true },
-
-                    { title : "From ATH", data : "fromAth", type : "numeric", numericFormat : percentFormat,
-                        readOnly: true, width: 55 },
-                    { title : "Days from ATH", data : "fromAthDays", type: "text", readOnly: true,
-                        width: 70 },
-
-                    { title : "Price 24h", data : "priceChange24h", type : "numeric", numericFormat : percentFormat,
-                        readOnly: true, width: 60, renderer : priceColorRenderer },
-                    { title : "Price 7D", data : "priceChange7d", type : "numeric", numericFormat : percentFormat,
-                        readOnly: true, width: 60, renderer : priceColorRenderer },
-                    { title : "Price 30D", data : "priceChange30d", type : "numeric", numericFormat : percentFormat,
-                        readOnly: true, width: 60, renderer : priceColorRenderer },
-                    { title : "Price 200D", data : "priceChange200d", type : "numeric", numericFormat : percentFormat,
-                        readOnly: true, width: 70, renderer : priceColorRenderer },
-
-                    { title : "MC rank", data : "marketCapRank", type : "numeric", readOnly: true,
-                        width: 40, className: "htMiddle htCenter" },
-                    { title : "Market cap", data : "marketCap", type : "numeric", numericFormat : marketCapFormat,
-                        readOnly: true, width: 90, className: "htMiddle htCenter text-smallest" },
-                    { title : "MC 24h", data : "marketCapChange24h", type : "numeric", numericFormat : percentFormat,
-                        readOnly: true, width: 60, renderer : priceColorRenderer },
-                    { title : "Circ. supply", data : "circulatingSupply", type : "numeric", readOnly: true,
-                        className: "htMiddle htCenter text-smallest", width : 70 },
-
-                    { title : "% of BTC MC", data : "btcMcFraction", type : "numeric", numericFormat : percentFormat2dec,
-                        readOnly: true, width: 65 },
-                    { title : "at 0.5%", data : "priceAt05", type : "numeric", numericFormat : priceFormat,
-                        readOnly: true, width: 80 },
-                    { title : "at 1%", data : "priceAt1", type : "numeric", numericFormat : priceFormat,
-                        readOnly: true, width: 80 },
-                    { title : "at 2%", data : "priceAt2", type : "numeric", numericFormat : priceFormat,
-                        readOnly: true, width: 80 },
-                    { title : "at 5%", data : "priceAt5", type : "numeric", numericFormat : priceFormat,
-                        readOnly: true, width: 80 },
-                    { title : "at 10%", data : "priceAt10", type : "numeric", numericFormat : priceFormat,
-                        readOnly: true, width: 80 },
-                    { title : "at 20%", data : "priceAt20", type : "numeric", numericFormat : priceFormat,
-                        readOnly: true, width: 80 },
-                    { title : "at 30%", data : "priceAt30", type : "numeric", numericFormat : priceFormat,
-                        readOnly: true, width: 80 },
-                ],
+                columns             : toolColumns,
 
                 // nestedHeaders: [
                 //     [{ label: '', colspan: 14 }, { label: 'Price if coin reaches % of BTC market cap', colspan: 7}],
@@ -212,12 +166,12 @@ export default {
                 },
 
                 afterChange         : async (change, source) => {
-                    console.log(`Data changed, source: ${source}`);
-                    console.log(change);
-
                     if (source !== "edit" ) {
                         return;
                     }
+
+                    log.log(logTag, `Data changed, source: ${source}`);
+                    log.log(logTag, change);
 
                     if (!auth.currentUser) {
                         log.log(logTag, `Not logged in!`);
@@ -278,7 +232,7 @@ export default {
 
                         // @todo only if valid!
 
-                        await this.coinsCollection.doc(coinId).set({[prop]: newValue});
+                        await this.coinsCollection.doc(coinId).update({[prop]: newValue});
                         console.log(`${coinId}.${prop} successfully changed to ${newValue}`);
                         this.setStatus(
                             `${coinId}.${prop} successfully changed from ${oldValue} to ${newValue}`,
@@ -383,24 +337,19 @@ export default {
 
         async reloadTable() {
             const snapshot = await this.coinsCollection.get();
-            let coins = {};
-            snapshot.forEach((doc) => coins[doc.id] = doc.data());
-            this.myCoins = coins;
-            console.log(coins);
+            let coinsFromDb = {};
+            snapshot.forEach((doc) => coinsFromDb[doc.id] = doc.data());
+            this.myCoins = coinsFromDb;
+            console.log(coinsFromDb);
 
 
             this.reloading = true;
 
-            const coinData = await getCoinMarketData(keys(coins), baseCurrency);
+            const coinData = await getCoinMarketData(keys(coinsFromDb), baseCurrency);
 
             const bitcoin = find(coinData, { id : "bitcoin" });
-            // console.log(bitcoin);
 
             let currentCoinId = 0;
-
-            // just a helper to calculate price of coin at certain bitcoin market cap fraction
-            const priceAtMCFraction = (fraction, circulatingSupply) => fraction * bitcoin.market_cap / circulatingSupply;
-
 
             const newTableData = map(coinData, (coin) => {
                 currentCoinId++;
@@ -408,7 +357,7 @@ export default {
                     id                  : currentCoinId,
                     coinSymbol          : coin.symbol.toUpperCase(),
                     coingeckoId         : coin.id,
-                    baserank            : coins[coin.id].baserank,
+                    baserank            : coinsFromDb[coin.id].baserank,
                     circulatingSupply   : Math.floor(coin.circulating_supply),
 
                     price               : coin.current_price,
@@ -420,18 +369,25 @@ export default {
                     priceChange30d      : coin.price_change_percentage_30d_in_currency / 100,
                     priceChange200d     : coin.price_change_percentage_200d_in_currency / 100,
 
+                    sma20d              : coinsFromDb[coin.id].sma20d,
+                    sma60d              : coinsFromDb[coin.id].sma60d,
+                    sma100d             : coinsFromDb[coin.id].sma100d,
+                    sma200d             : coinsFromDb[coin.id].sma200d,
+                    sma2y               : coinsFromDb[coin.id].sma2y,
+                    sma5x2y             : coinsFromDb[coin.id].sma5x2y,
+
                     marketCapRank       : coin.market_cap_rank,
                     marketCap           : coin.market_cap,
                     marketCapChange24h  : coin.market_cap_change_percentage_24h / 100,
 
                     btcMcFraction       : coin.market_cap / bitcoin.market_cap,
-                    priceAt05           : priceAtMCFraction(0.005, coin.circulating_supply),
-                    priceAt1            : priceAtMCFraction(0.01, coin.circulating_supply),
-                    priceAt2            : priceAtMCFraction(0.2, coin.circulating_supply),
-                    priceAt5            : priceAtMCFraction(0.05, coin.circulating_supply),
-                    priceAt10           : priceAtMCFraction(0.10, coin.circulating_supply),
-                    priceAt20           : priceAtMCFraction(0.20, coin.circulating_supply),
-                    priceAt30           : priceAtMCFraction(0.30, coin.circulating_supply),
+                    priceAt05           : priceAtMCFraction(0.005, coin.circulating_supply, bitcoin.market_cap),
+                    priceAt1            : priceAtMCFraction(0.01, coin.circulating_supply, bitcoin.market_cap),
+                    priceAt2            : priceAtMCFraction(0.2, coin.circulating_supply, bitcoin.market_cap),
+                    priceAt5            : priceAtMCFraction(0.05, coin.circulating_supply, bitcoin.market_cap),
+                    priceAt10           : priceAtMCFraction(0.10, coin.circulating_supply, bitcoin.market_cap),
+                    priceAt20           : priceAtMCFraction(0.20, coin.circulating_supply, bitcoin.market_cap),
+                    priceAt30           : priceAtMCFraction(0.30, coin.circulating_supply, bitcoin.market_cap),
                 }
             });
 
@@ -439,10 +395,33 @@ export default {
 
             this.$refs.table.hotInstance.loadData(newTableData);
             this.reloading = false;
+
+            this.latestTableData = newTableData;
         },
 
         async recalculateSMAs() {
-            await calculateSMA(["bitcoin"], baseCurrency);
+            if (!this.myCoins) {
+                this.setStatus("Add some coins first", 0, "error");
+                return;
+            }
+
+            this.reloading = true;
+            const smas = await calculateSMA(keys(this.myCoins), baseCurrency);
+            // console.log(smas);
+
+            for (let i = 0; i < this.latestTableData.length; i++) {
+                assign(this.latestTableData[i], smas[this.latestTableData[i].coingeckoId]);
+            }
+
+            // console.log(this.latestTableData);
+            this.$refs.table.hotInstance.loadData(this.latestTableData);
+            this.reloading = false;
+
+            // update the remote DB
+            forEach(smas, (smaData, coingeckoId) => {
+                // no reason to await it
+                this.coinsCollection.doc(coingeckoId).update(smaData);
+            });
         }
     }
 }
@@ -454,6 +433,7 @@ export default {
         background-color: rgba(44, 62, 80, 0.12);
     }
     .handsontable td, .handsontable th { font-size: 14px; }
+    .handsontable td.text-small { font-size: 12px; }
     .handsontable td.text-smaller { font-size: 11px; }
     .handsontable td.text-smallest { font-size: 10px; }
     .handsontable td.htDimmed { color: black; }

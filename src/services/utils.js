@@ -14,3 +14,13 @@ export const everyNth = (array, n) => {
 }
 
 export const waitFor = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+export const roundPrice = (price) => price > 100
+    ? Math.round(price)
+    : (price > 10
+        ? Math.round(price * 10) / 10
+        : Math.round(price * 100) / 100);
+
+// just a helper to calculate price of coin at certain target market cap fraction (e.g. BTC market cap)
+export const priceAtMCFraction = (fraction, circulatingSupply, targetMarketCap) =>
+    roundPrice(fraction * targetMarketCap / circulatingSupply);
