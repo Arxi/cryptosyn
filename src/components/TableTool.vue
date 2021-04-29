@@ -9,7 +9,7 @@
             </span>
         </button>
 
-        <button @click="recalculateSMAs" :disabled="reloading">
+        <button @click="recalculateSMAs" :disabled="reloading" v-if="isLoggedIn">
             recalculate SMAs
         </button>
 
@@ -400,6 +400,16 @@ export default {
         },
 
         async recalculateSMAs() {
+            if (!auth.currentUser) {
+                log.log(logTag, `Not logged in!`);
+                this.setStatus(
+                    "You are not signed in, or don't have necessary permissions!",
+                    0,
+                    "error"
+                );
+                return;
+            }
+
             if (!this.myCoins) {
                 this.setStatus("Add some coins first", 0, "error");
                 return;
