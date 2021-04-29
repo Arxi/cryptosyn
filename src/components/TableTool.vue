@@ -10,7 +10,7 @@
         </button>
 
         <button @click="recalculateSMAs" :disabled="reloading" v-if="isLoggedIn">
-            recalculate SMAs
+            recalculate SMAs (takes a long time)
         </button>
 
 
