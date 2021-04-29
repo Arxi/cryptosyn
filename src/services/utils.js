@@ -12,3 +12,5 @@ export const everyNth = (array, n) => {
     }
     return newArray.reverse();
 }
+
+export const waitFor = (ms) => new Promise(resolve => setTimeout(resolve, ms));
