@@ -19,11 +19,21 @@ const db = firebase.firestore();
 const auth = firebase.auth();
 
 // collection references
-const coinsCollection = db.collection('coins');
+const publicToolCoinsCollection = db.collection('coins');
+const usersCollection = db.collection('users');
+let privateToolCoinsCollection = null;
+
+auth.onAuthStateChanged((user) => {
+    if (user) {
+        privateToolCoinsCollection = db.collection(`users/${user.uid}/toolCoins`);
+    }
+});
 
 // export utils/refs
 export {
     db,
     auth,
-    coinsCollection,
+    usersCollection,
+    publicToolCoinsCollection,
+    privateToolCoinsCollection,
 };

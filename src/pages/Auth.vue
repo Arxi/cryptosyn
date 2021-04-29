@@ -39,7 +39,7 @@ export default {
                     }
                 },
                 // signInFlow: 'popup',
-                signInSuccessUrl: "/#/table",
+                signInSuccessUrl: "/#/tool",
                 signInOptions: [
                     firebase.auth.EmailAuthProvider.PROVIDER_ID
                 ],

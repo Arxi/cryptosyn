@@ -8,10 +8,11 @@
 
       <div v-else id="login-info">
           <template v-if="this.loggedIn">
-              You are signed in as {{ user.displayName }}. <a href="#" @click="signOut">Sign out</a>
+              You are signed in as {{ user.displayName }} | <a href="#" @click="signOut">Sign out</a> |
+              <a href="/#/tool">Public tool</a> | <a href="/#/my-tool">My tool</a>
           </template>
           <template v-else>
-              You are not signed in! <a href="/#/auth">Sign in</a>
+              You are not signed in! <a href="/#/auth">Sign in</a> | <a href="/#/tool">Public tool</a>
           </template>
       </div>
 
@@ -57,6 +58,7 @@ export default {
         signOut() {
             log.log(logTag, "Signing out");
             auth.signOut();
+            this.$router.push("/auth");
         }
     }
 }
@@ -72,8 +74,6 @@ export default {
     margin-top: 10px;
 
     position: relative;
-
-    /*displa*/
 }
 
 #loading-info {

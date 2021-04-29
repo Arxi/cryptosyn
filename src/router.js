@@ -2,7 +2,9 @@ import VueRouter from "vue-router";
 import { auth } from './services/firebase';
 
 import Auth from "./pages/Auth";
-import MarketCaps from "./pages/MarketCaps";
+import PublicTool from "./pages/PublicTool";
+import PrivateTool from "./pages/PrivateTool";
+
 
 import log from "./services/logger";
 const logTag = "router";
@@ -12,7 +14,7 @@ const routes = [
     {
         // @note: route param on root route would cause problems with navigation
         path : '/',
-        redirect: "/table"
+        redirect: "/tool"
     },
     {
         path : "/auth",
@@ -20,11 +22,19 @@ const routes = [
         component : Auth,
         meta : { requiresAuth : false },
     },
+
     {
-        path : "/table",
-        name : 'TABLE',
-        component : MarketCaps,
+        path : "/tool",
+        name : 'PUBLIC-TOOL',
+        component : PublicTool,
         meta : { requiresAuth : false }
+    },
+
+    {
+        path : "/my-tool",
+        name : 'PRIVATE-TOOL',
+        component : PrivateTool,
+        meta : { requiresAuth : true }
     },
 ];
 

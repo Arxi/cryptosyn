@@ -1,9 +1,5 @@
 <template>
     <div id="market-caps">
-        <h1>coin market cap "analysis" tool lol</h1>
-        <h3>version 0.3.0 </h3>
-
-
         <button @click="reloadTable" :disabled="reloading">
             <span v-if="reloading">
                 reloading...
@@ -12,6 +8,11 @@
                 reload table
             </span>
         </button>
+
+        <button @click="recalculateSMAs" :disabled="reloading">
+            recalculate SMAs
+        </button>
+
 
         <br />
 
@@ -41,17 +42,17 @@
 <!---------------------------------------------------------------------------->
 <script>
 /* eslint-disable vue/no-unused-components,no-unused-vars */
-import { HotTable, HotColumn } from '@handsontable/vue';
+import { HotTable } from '@handsontable/vue';
 import { map, find, keys } from "lodash";
-import { getCoinMarketData, findCoinBySymbol, findCoinByCoingeckoId } from "../services/cryptoApi";
-import { auth, coinsCollection } from "../services/firebase";
+import { getCoinMarketData, findCoinBySymbol, findCoinByCoingeckoId, calculateSMA } from "../services/cryptoApi";
+import { auth } from "../services/firebase";
 import { sparklineRenderer, priceColorRenderer } from "../services/hotUtils";
 import { relativeDays, everyNth } from "../services/utils";
 import Loader from "../components/Loader";
 import StatusMessage from "../components/StatusMessage";
 
 import log from "../services/logger";
-const logTag = "MarketCaps";
+const logTag = "TableTool";
 
 const baseCurrency = "usd";
 // http://numbrojs.com/old-format.html
@@ -63,11 +64,16 @@ const percentFormat2dec = { pattern: '0.00%' };
 export default {
     name: logTag,
 
-    components: { HotTable, HotColumn, Loader, StatusMessage },
+    components: { HotTable, Loader, StatusMessage },
+
+    props : {
+        coinsCollection : Object
+    },
 
     async mounted() {
         log.log(logTag, `=================== mounted =================== `);
         this.isLoggedIn = !!auth.currentUser;
+
         this.$nextTick(() => {
             this.reloadTable();
         });
@@ -190,6 +196,11 @@ export default {
                 currentRowClassName : 'currentRow',
                 currentColClassName : 'currentCol',
                 autoColumnSize      : true,
+
+                // this prevents lazyloading:
+                viewportColumnRenderingOffsetnumber : 30,
+                viewportRowRenderingOffsetnumber    : 100,
+
                 // fixedRowsTop        : 1,
                 fixedColumnsLeft    : 1,
                 columnSorting       : true,
@@ -250,7 +261,7 @@ export default {
 
 
                             // delete the old coin
-                            await coinsCollection.doc(oldValue).delete();
+                            await this.coinsCollection.doc(oldValue).delete();
                             log.log(logTag, `Deleted coin: ${oldValue}`);
                             if (!newValue) {
                                 this.reloadTable();
@@ -267,7 +278,7 @@ export default {
 
                         // @todo only if valid!
 
-                        await coinsCollection.doc(coinId).set({[prop]: newValue});
+                        await this.coinsCollection.doc(coinId).set({[prop]: newValue});
                         console.log(`${coinId}.${prop} successfully changed to ${newValue}`);
                         this.setStatus(
                             `${coinId}.${prop} successfully changed from ${oldValue} to ${newValue}`,
@@ -357,7 +368,7 @@ export default {
             log.log(logTag, `Adding new coin: ${coinId}`);
 
             try {
-                await coinsCollection.doc(coinId).set(
+                await this.coinsCollection.doc(coinId).set(
                     { baserank : null, description : "no description yet" }
                 )
                 log.log(logTag, `New coin added successfully`);
@@ -371,7 +382,7 @@ export default {
         },
 
         async reloadTable() {
-            const snapshot = await coinsCollection.get();
+            const snapshot = await this.coinsCollection.get();
             let coins = {};
             snapshot.forEach((doc) => coins[doc.id] = doc.data());
             this.myCoins = coins;
@@ -428,6 +439,10 @@ export default {
 
             this.$refs.table.hotInstance.loadData(newTableData);
             this.reloading = false;
+        },
+
+        async recalculateSMAs() {
+            await calculateSMA(["bitcoin"], baseCurrency);
         }
     }
 }
