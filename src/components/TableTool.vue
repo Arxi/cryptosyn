@@ -383,7 +383,7 @@ export default {
                     btcMcFraction       : coin.market_cap / bitcoin.market_cap,
                     priceAt05           : priceAtMCFraction(0.005, coin.circulating_supply, bitcoin.market_cap),
                     priceAt1            : priceAtMCFraction(0.01, coin.circulating_supply, bitcoin.market_cap),
-                    priceAt2            : priceAtMCFraction(0.2, coin.circulating_supply, bitcoin.market_cap),
+                    priceAt2            : priceAtMCFraction(0.02, coin.circulating_supply, bitcoin.market_cap),
                     priceAt5            : priceAtMCFraction(0.05, coin.circulating_supply, bitcoin.market_cap),
                     priceAt10           : priceAtMCFraction(0.10, coin.circulating_supply, bitcoin.market_cap),
                     priceAt20           : priceAtMCFraction(0.20, coin.circulating_supply, bitcoin.market_cap),
