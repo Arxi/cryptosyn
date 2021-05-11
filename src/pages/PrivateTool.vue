@@ -1,6 +1,6 @@
 <template>
     <div id="public-tool">
-        <h1>coin "analysis" tool v0.4.0 lol (private)</h1>
+        <h1>coin "analysis" tool v0.4.1 lol (private)</h1>
         <table-tool :coins-collection="coinsCollection" />
     </div>
 </template>
