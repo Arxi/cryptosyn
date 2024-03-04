@@ -5,7 +5,7 @@ import { waitFor, roundPrice } from "./utils";
 import log from "./logger";
 const logTag = "cryptoApiService";
 
-// @note coingecko API is limited to ~30 requests per minute - let's use 25
+// @note coingecko API is limited to ~30 requests per minute - let's use 20
 const coingeckoBaseApiUrl = "https://api.coingecko.com/api/v3";
 // const flipsideBaseApiUrl = "https://api.flipsidecrypto.com/api/v2";
 // const flipsideApiKey = "9011f9cb-0d08-4e73-a367-ada5d26ad9e0";
@@ -84,8 +84,8 @@ export const calculateSMA = async (coinIds, base) => {
 
         smas[coinId] = { sma20d, sma60d, sma100d, sma200d, sma2y, sma5x2y };
 
-        // coingecko API is limited to 30 requests per minute, we'll use 25
-        await waitFor(2400);
+        // coingecko API is limited to 30 requests per minute, we'll use 20
+        await waitFor(3000);
     }
 
     // console.log(smas);
